@@ -5,6 +5,7 @@ import tensorflow as tf # deep learning library (https://www.tensorflow.org/)
 import cv2 # OpenCV computer vision library (https://opencv.org/)
 import matplotlib.pyplot as plt # Plotting library (https://matplotlib.org/)
 import pickle # library for saving and retrieving trained model (https://docs.python.org/2/library/pickle.html)
+import random
 
 import os # file operations
 import math
@@ -85,7 +86,7 @@ class TrafficSignsClassifier:
 		# Relu
 		A1 = tf.nn.relu(Z1)
 
-		# max-pool Kernel[8X8] stride 8
+		# max-pool Kernel[2X2] stride 2
 		P1 = tf.nn.max_pool(A1, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
 
 		# Conv2 with stride 1 and same padding
@@ -94,7 +95,7 @@ class TrafficSignsClassifier:
 		# Relu
 		A2 = tf.nn.relu(Z2)
 
-		# max-pool kernel[2X2] stride 1
+		# max-pool kernel[2X2] stride 2
 		P2 = tf.nn.max_pool(A2, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
 
 		# Flatten
@@ -132,7 +133,7 @@ class TrafficSignsClassifier:
 		Y = np.eye(C)[Y.reshape(-1)]
 		return Y
 
-	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 5, minibatch_size = 64, print_cost = True):
+	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 100, minibatch_size = 64, print_cost = True):
 		#self.predict_data()
 		costs = []
 		tf.set_random_seed(1)
@@ -151,6 +152,14 @@ class TrafficSignsClassifier:
 
 		optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
+		prediction = tf.argmax(tf.nn.softmax(Z3), 1)
+
+		truth = tf.argmax(Y, 1)
+		
+		equality = tf.equal(prediction, truth)
+		
+		accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
+		
 		init = tf.global_variables_initializer()
 
 		saver = tf.train.Saver()
@@ -159,53 +168,50 @@ class TrafficSignsClassifier:
 			sess.run(init)
 
 			if restore == True:
-				saver = tf.train.import_meta_graph(MODEL_EXPORT_DIR + '/my-model-4.meta')
 				saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR))
-				op = sess.run([tf.sigmoid(Z3)], feed_dict = {X: self.x_train[1:5]})
-				print op
+				traffic_sign_classifier.visualize_dataset(self.x_test[1:5], 2, 2, (8,8))
+				pred, tru, acc= sess.run([prediction, truth, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
+				print(acc)
 			else:
 				for epoch in range(num_epochs):
 					minibatch_cost = 0.
 					num_minibatches = int(m / minibatch_size) # number of minibatches of size minibatch_size in the train set
 					minibatches = self.random_mini_batches(self.x_train, self.y_train, minibatch_size, seed)
-
 					for minibatch in minibatches:
 						(minibatch_X, minibatch_Y) = minibatch
 						_ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y})
 						minibatch_cost += temp_cost / num_minibatches
 
 					if print_cost == True:
+						accuracy= sess.run(accuracy, feed_dict = {X: minibatch_X, Y: minibatch_Y})
+						print(accuracy, '%')
 						costs.append(minibatch_cost)
 
 					if print_cost == True and epoch % 5 == 0:
+						self.save_model(sess, epoch)
 						print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
 
-				
-				self.save_model(sess, epoch)
 
 	def save_model(self, sess, epoch):
 		saver = tf.train.Saver()
-		# tf.saved_model.simple_save(sess,
-		# 						   MODEL_EXPORT_DIR,
-		# 						   inputs = {'X': inputs},
-		# 						   outputs = {'Y': outputs})
 		saver.save(sess, MODEL_EXPORT_DIR + '/my-model', global_step = epoch)
 
-	def predict_data(self):
-		try:
-			predictor = tf.contrib.predictor.from_saved_model(MODEL_EXPORT_DIR)
-			Y = tf.placeholder(tf.float32, shape=[None, 43], name="Y")
-			predictions = predictor({'X': self.x_train[1:10]})
-			print(predictions)
-		except IOError:
-			print("There was no model file in directory " + MODEL_EXPORT_DIR + ". Hence will continue the training process")
+	def visualize_dataset(self, images, rows = 1, columns = 1, fsize=(8,8)):
+		fig = plt.figure(figsize=fsize)
 
-				
+		for i in range(0, rows*columns):
+			fig.add_subplot(rows, columns, i + 1)
+			plt.imshow(images[i])
+
+		plt.show()
+
 
 if __name__ == "__main__":
 	img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
 	traffic_sign_classifier = TrafficSignsClassifier(img_path)
 	images, labels = traffic_sign_classifier.get_images()
 	preprocessed_images = traffic_sign_classifier.preprocess_images(images)
+	#sample_imgs = random.sample(preprocessed_images, 6)
+	#traffic_sign_classifier.visualize_dataset(sample_imgs, 3, 2, (8,8))
 	traffic_sign_classifier.train_test_split_images(preprocessed_images, labels, 0.3)
 	traffic_sign_classifier.build_model(True)
