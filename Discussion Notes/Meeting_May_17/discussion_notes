@@ -1,0 +1,7 @@
+1. Need to implement visualization of images during the process.
+2. Print out the accuracy for easier understanding and debugging.
+3. Run the code in the machines in the lab and see the performance for training.
+4. Add more fully connected layers and see the performance.
+5. Augmentation of images as required.
+6. Save and restore model functionality.
+7. Visualize the failure cases. Some graph that can provide inferences of the cases.
