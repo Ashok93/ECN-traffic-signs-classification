@@ -4,7 +4,6 @@ import numpy as np # scientific computations library (http://www.numpy.org/)
 import tensorflow as tf # deep learning library (https://www.tensorflow.org/)
 import cv2 # OpenCV computer vision library (https://opencv.org/)
 import matplotlib.pyplot as plt # Plotting library (https://matplotlib.org/)
-import pickle # library for saving and retrieving trained model (https://docs.python.org/2/library/pickle.html)
 import random
 
 import os # file operations
@@ -169,9 +168,11 @@ class TrafficSignsClassifier:
 
 			if restore == True:
 				saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR))
-				traffic_sign_classifier.visualize_dataset(self.x_test[1:5], 2, 2, (8,8))
-				pred, tru, acc= sess.run([prediction, truth, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
-				print(acc)
+				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
+				#print(eq)
+				print('{} %'.format(acc*100))
+				self.plot_failed_cases(eq, pred)
+				#self.visualize_dataset(self.x_test[1:5],(8,8))
 			else:
 				for epoch in range(num_epochs):
 					minibatch_cost = 0.
@@ -196,15 +197,31 @@ class TrafficSignsClassifier:
 		saver = tf.train.Saver()
 		saver.save(sess, MODEL_EXPORT_DIR + '/my-model', global_step = epoch)
 
-	def visualize_dataset(self, images, rows = 1, columns = 1, fsize=(8,8)):
+	def visualize_dataset(self, images, fsize=(8,8), labels = None, predictions = None):
 		fig = plt.figure(figsize=fsize)
+		num_imgs = images.shape[0]
 
-		for i in range(0, rows*columns):
-			fig.add_subplot(rows, columns, i + 1)
+		if num_imgs % 2 == 0:
+			rows = cols = num_imgs/2
+		elif num_imgs % 3 == 0:
+			rows = cols = num_imgs/3
+		else:
+			rows = cols = math.floor(num_imgs/3) + num_imgs%3
+		
+		for i in range(0, num_imgs):
+			ax = fig.add_subplot(rows, cols, i + 1)
+			ax.set_title("Prediction: " + str(predictions[i]) + "\nTrue Label: " + str(labels[i]))
 			plt.imshow(images[i])
 
+		plt.tight_layout()
 		plt.show()
 
+	def plot_failed_cases(self, equality, prediction):
+		incorrect = (equality == False)
+		incorrect_images = self.x_test[incorrect]
+		incorrect_predictions = prediction[incorrect]
+		correct_labels = np.argmax(self.y_test[incorrect], 1)
+		self.visualize_dataset(incorrect_images[0:7], (8,8), correct_labels, incorrect_predictions)
 
 if __name__ == "__main__":
 	img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
@@ -212,6 +229,6 @@ if __name__ == "__main__":
 	images, labels = traffic_sign_classifier.get_images()
 	preprocessed_images = traffic_sign_classifier.preprocess_images(images)
 	#sample_imgs = random.sample(preprocessed_images, 6)
-	#traffic_sign_classifier.visualize_dataset(sample_imgs, 3, 2, (8,8))
+	#traffic_sign_classifier.visualize_dataset(sample_imgs, (8,8))
 	traffic_sign_classifier.train_test_split_images(preprocessed_images, labels, 0.3)
 	traffic_sign_classifier.build_model(True)
