@@ -3,7 +3,6 @@
 import numpy as np # scientific computations library (http://www.numpy.org/)
 import tensorflow as tf # deep learning library (https://www.tensorflow.org/)
 import cv2 # OpenCV computer vision library (https://opencv.org/)
-import matplotlib.pyplot as plt # Plotting library (https://matplotlib.org/)
 import random
 
 import os # file operations
@@ -11,6 +10,8 @@ import math
 import csv
 
 from sklearn.model_selection import train_test_split
+from plot_utils import visualize_dataset
+from img_utils import get_train_images, get_test_images, preprocess_images, transform_image
 #############################################################
 
 NUM_CLASSES = 43
@@ -19,65 +20,48 @@ project_root_dir = os.path.dirname(os.path.abspath(curr_dirname))
 MODEL_EXPORT_DIR = os.path.join(project_root_dir, 'models/new')
 
 class TrafficSignsClassifier:
-	def __init__(self, img_path):
-		self.img_path = img_path
+	def __init__(self):
 		self.x_train = None
 		self.y_train = None
+		self.x_validation = None
+		self.y_validation = None
 		self.x_test = None
 		self.y_test = None
 
-	def get_images(self):
 
-		images = []
-		labels = []
-
-		for c in range(0,43):
-			prefix = self.img_path + '/' + format(c, '05d') + '/' # subdirectory for class
-			gtFile = open(prefix + 'GT-'+ format(c, '05d') + '.csv') # annotations file
-			gtReader = csv.reader(gtFile, delimiter=';') # csv parser for annotations file
-			next(gtReader) # skip header
-
-			for row in gtReader:
-				images.append(plt.imread(prefix + row[0])) # the 1th column is the filename
-				labels.append(row[7]) # the 8th column is the label
-			gtFile.close()
-
-		return images, labels
-
-
-	def preprocess_images(self, images, to_color = 'GRAY', size=(30,30)):
-		processed_imgs = []
-		for image in images:
-			image = cv2.resize(image, (size[0], size[1]), interpolation=cv2.INTER_LINEAR)
-			#image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-			processed_imgs.append(image)
-
-		return processed_imgs
-
-	def train_test_split_images(self, images, labels, test_size):
+	def train_test_images(self, train_images, train_labels, test_images, test_labels):
 		#labels = np_utils.to_categorical(labels, NUM_CLASSES)
-		labels = np.array(labels, dtype=np.int8)
-		labels = self.convert_to_one_hot(labels, NUM_CLASSES)
-		self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(np.array(images), labels, test_size=test_size)
+		train_labels = np.array(train_labels, dtype=np.int8)
+		train_labels = self.convert_to_one_hot(train_labels, NUM_CLASSES)
+		test_labels = np.array(test_labels, dtype=np.int8)
+		test_labels = self.convert_to_one_hot(test_labels, NUM_CLASSES)
+		self.x_train, self.x_validation, self.y_train, self.y_validation = train_test_split(train_images, train_labels, test_size=0.2)
+		self.x_test, self.y_test = test_images, test_labels
 		self.x_train = self.x_train.reshape(self.x_train.shape[0], self.x_train.shape[1], self.x_train.shape[2], 3)
 		self.x_test = self.x_test.reshape(self.x_test.shape[0], self.x_test.shape[1], self.x_test.shape[2], 3)
+		self.x_validation = self.x_validation.reshape(self.x_validation.shape[0], self.x_validation.shape[1], self.x_validation.shape[2], 3)
 
 	def create_placeholders(self, nH, nW, nC, nY):
 
 		X = tf.placeholder(tf.float32, shape=[None, nH, nW, nC], name="X")
 		Y = tf.placeholder(tf.float32, shape=[None, nY], name="Y")
+		keep_prob = tf.placeholder(tf.float32)
 
-		return X, Y
+		return X, Y, keep_prob
 
 	def initialize_parameters(self):
-		W1 = tf.get_variable("W1", shape = [5, 5, 3, 6], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W2 = tf.get_variable("W2", shape = [5, 5, 6, 16], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W1 = tf.get_variable("W1", shape = [5, 5, 3, 8], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W2 = tf.get_variable("W2", shape = [5, 5, 8, 16], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W3 = tf.get_variable("W3", shape = [3, 3, 16, 64], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W4 = tf.get_variable("W4", shape = [3, 3, 64, 128], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
 
-		return { "W1": W1, "W2":W2 }
+		return { "W1": W1, "W2":W2, "W3": W3, "W4": W4 }
 
-	def forward_propagation(self, X, parameters):
+	def forward_propagation(self, X, parameters, keep_prob):
 		W1 = parameters["W1"]
 		W2 = parameters["W2"]
+		W3 = parameters["W3"]
+		W4 = parameters["W4"]
 
 		# Conv1 layer with stride 1 and same padding
 		Z1 = tf.nn.conv2d(X, W1, strides=[1,1,1,1], padding="VALID")
@@ -85,23 +69,46 @@ class TrafficSignsClassifier:
 		# Relu
 		A1 = tf.nn.relu(Z1)
 
-		# max-pool Kernel[2X2] stride 2
-		P1 = tf.nn.max_pool(A1, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
-
 		# Conv2 with stride 1 and same padding
-		Z2 = tf.nn.conv2d(P1, W2, strides=[1,1,1,1], padding="VALID")
+		Z2 = tf.nn.conv2d(A1, W2, strides=[1,1,1,1], padding="VALID")
 
 		# Relu
 		A2 = tf.nn.relu(Z2)
 
+		# max-pool Kernel[2X2] stride 2
+		P1 = tf.nn.max_pool(A2, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
+
+		# Conv3 layer with stride 1 and same padding
+		Z3 = tf.nn.conv2d(P1, W3, strides=[1,1,1,1], padding="VALID")
+
+		# Relu
+		A3 = tf.nn.relu(Z3)
+
+		# Conv4 with stride 1 and same padding
+		Z4= tf.nn.conv2d(A3, W4, strides=[1,1,1,1], padding="VALID")
+
+		# Relu
+		A4 = tf.nn.relu(Z4)
+
 		# max-pool kernel[2X2] stride 2
-		P2 = tf.nn.max_pool(A2, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
+		P2 = tf.nn.max_pool(A4, ksize=[1,2,2,1], strides = [1,2,2,1], padding="VALID")
 
 		# Flatten
 		P2 = tf.contrib.layers.flatten(P2)
-
+		
 		#fully connected
-		Z3 = tf.contrib.layers.fully_connected(P2, 43, activation_fn=None)
+		Z3_1 = tf.contrib.layers.fully_connected(P2, 256, activation_fn=None)
+
+		drop_out1 = tf.nn.dropout(Z3_1, keep_prob)
+		
+		#fully connected
+		Z3_2 = tf.contrib.layers.fully_connected(drop_out1, 128, activation_fn=None)
+		
+		drop_out = tf.nn.dropout(Z3_2, keep_prob)
+
+		Z3_3 = tf.contrib.layers.fully_connected(drop_out, 80, activation_fn=None)
+
+		Z3 = tf.contrib.layers.fully_connected(Z3_3, NUM_CLASSES, activation_fn=None)
 
 		return Z3
 
@@ -132,8 +139,19 @@ class TrafficSignsClassifier:
 		Y = np.eye(C)[Y.reshape(-1)]
 		return Y
 
-	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 100, minibatch_size = 64, print_cost = True):
-		#self.predict_data()
+	def get_augmented_images(self, images, labels, epoch):
+		augmented_images = []
+		augmented_labels = []
+		len_img = len(images)
+		num_imgs = int(50/(epoch+1))
+		for i in range(num_imgs):
+			rand_int = np.random.randint(len_img)
+			augmented_images.append(transform_image(images[rand_int],10,15,5))
+			augmented_labels.append(labels[rand_int])
+
+		return np.array(augmented_images), np.array(augmented_labels)
+
+	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 100, minibatch_size = 100, print_cost = True):
 		costs = []
 		tf.set_random_seed(1)
 		seed = 3
@@ -141,11 +159,11 @@ class TrafficSignsClassifier:
 		(m, nH, nW, nC) = self.x_train.shape
 		nY = self.y_train.shape[1]
 
-		X, Y = self.create_placeholders(nH, nW, nC, nY)
+		X, Y, keep_prob = self.create_placeholders(nH, nW, nC, nY)
 		
 		parameters = self.initialize_parameters()
 
-		Z3 = self.forward_propagation(X, parameters)
+		Z3 = self.forward_propagation(X, parameters, keep_prob)
 
 		cost = self.compute_cost(Z3, Y)
 
@@ -168,11 +186,9 @@ class TrafficSignsClassifier:
 
 			if restore == True:
 				saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR))
-				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
-				#print(eq)
+				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test,  keep_prob: 1.0})
 				print('{} %'.format(acc*100))
 				self.plot_failed_cases(eq, pred)
-				#self.visualize_dataset(self.x_test[1:5],(8,8))
 			else:
 				for epoch in range(num_epochs):
 					minibatch_cost = 0.
@@ -180,55 +196,49 @@ class TrafficSignsClassifier:
 					minibatches = self.random_mini_batches(self.x_train, self.y_train, minibatch_size, seed)
 					for minibatch in minibatches:
 						(minibatch_X, minibatch_Y) = minibatch
-						_ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y})
+						#aug_images, aug_labels = self.get_augmented_images(minibatch_X, minibatch_Y, epoch)
+						#minibatch_X = np.append(minibatch_X, aug_images, axis = 0)
+						#minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
+						_ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y, keep_prob: 0.5})
 						minibatch_cost += temp_cost / num_minibatches
 
 					if print_cost == True:
-						accuracy= sess.run(accuracy, feed_dict = {X: minibatch_X, Y: minibatch_Y})
-						print(accuracy, '%')
+						train_acc= sess.run(accuracy, feed_dict = {X: self.x_validation, Y: self.y_validation, keep_prob: 1.0})
+						print('Validation Data Accuracy: {} %'.format(train_acc*100))
 						costs.append(minibatch_cost)
 
 					if print_cost == True and epoch % 5 == 0:
 						self.save_model(sess, epoch)
+						print ("############ EPOCH %i SUMMARY: ############" % epoch)
+						print("Copy of model saved...")
 						print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
+						pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test,  keep_prob: 1.0})
+						print('Validation Data Accuracy: {} %'.format(train_acc*100))
+						print('Test Data Accuracy: {} %'.format(acc*100))
+						print ('############################################')
 
+				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
+				print('Test Accuracy: {} %'.format(acc*100))
+				self.plot_failed_cases(eq, pred)
 
 	def save_model(self, sess, epoch):
 		saver = tf.train.Saver()
 		saver.save(sess, MODEL_EXPORT_DIR + '/my-model', global_step = epoch)
-
-	def visualize_dataset(self, images, fsize=(8,8), labels = None, predictions = None):
-		fig = plt.figure(figsize=fsize)
-		num_imgs = images.shape[0]
-
-		if num_imgs % 2 == 0:
-			rows = cols = num_imgs/2
-		elif num_imgs % 3 == 0:
-			rows = cols = num_imgs/3
-		else:
-			rows = cols = math.floor(num_imgs/3) + num_imgs%3
-		
-		for i in range(0, num_imgs):
-			ax = fig.add_subplot(rows, cols, i + 1)
-			ax.set_title("Prediction: " + str(predictions[i]) + "\nTrue Label: " + str(labels[i]))
-			plt.imshow(images[i])
-
-		plt.tight_layout()
-		plt.show()
 
 	def plot_failed_cases(self, equality, prediction):
 		incorrect = (equality == False)
 		incorrect_images = self.x_test[incorrect]
 		incorrect_predictions = prediction[incorrect]
 		correct_labels = np.argmax(self.y_test[incorrect], 1)
-		self.visualize_dataset(incorrect_images[0:7], (8,8), correct_labels, incorrect_predictions)
+		visualize_dataset(incorrect_images[0:24], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
 
 if __name__ == "__main__":
-	img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
-	traffic_sign_classifier = TrafficSignsClassifier(img_path)
-	images, labels = traffic_sign_classifier.get_images()
-	preprocessed_images = traffic_sign_classifier.preprocess_images(images)
-	#sample_imgs = random.sample(preprocessed_images, 6)
-	#traffic_sign_classifier.visualize_dataset(sample_imgs, (8,8))
-	traffic_sign_classifier.train_test_split_images(preprocessed_images, labels, 0.3)
-	traffic_sign_classifier.build_model(True)
+	train_img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
+	test_img_path = os.path.join(project_root_dir, 'GTSRB/Final_Test/Images')
+	train_images, train_labels = get_train_images(train_img_path)
+	test_images, test_labels = get_test_images(test_img_path)
+	preprocessed_train_images = preprocess_images(train_images, False)
+	preprocessed_test_images = preprocess_images(test_images, False)
+	traffic_sign_classifier = TrafficSignsClassifier()
+	traffic_sign_classifier.train_test_images(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
+	traffic_sign_classifier.build_model()
