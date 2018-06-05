@@ -35,7 +35,7 @@ class TrafficSignsClassifier:
 		train_labels = self.convert_to_one_hot(train_labels, NUM_CLASSES)
 		test_labels = np.array(test_labels, dtype=np.int8)
 		test_labels = self.convert_to_one_hot(test_labels, NUM_CLASSES)
-		self.x_train, self.x_validation, self.y_train, self.y_validation = train_test_split(train_images, train_labels, test_size=0.2)
+		self.x_train, self.x_validation, self.y_train, self.y_validation = train_test_split(train_images, train_labels, test_size=0.08)
 		self.x_test, self.y_test = test_images, test_labels
 		self.x_train = self.x_train.reshape(self.x_train.shape[0], self.x_train.shape[1], self.x_train.shape[2], 3)
 		self.x_test = self.x_test.reshape(self.x_test.shape[0], self.x_test.shape[1], self.x_test.shape[2], 3)
@@ -51,8 +51,8 @@ class TrafficSignsClassifier:
 
 	def initialize_parameters(self):
 		W1 = tf.get_variable("W1", shape = [5, 5, 3, 8], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W2 = tf.get_variable("W2", shape = [5, 5, 8, 16], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W3 = tf.get_variable("W3", shape = [3, 3, 16, 64], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W2 = tf.get_variable("W2", shape = [5, 5, 8, 32], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W3 = tf.get_variable("W3", shape = [3, 3, 32, 64], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
 		W4 = tf.get_variable("W4", shape = [3, 3, 64, 128], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
 
 		return { "W1": W1, "W2":W2, "W3": W3, "W4": W4 }
@@ -196,9 +196,10 @@ class TrafficSignsClassifier:
 					minibatches = self.random_mini_batches(self.x_train, self.y_train, minibatch_size, seed)
 					for minibatch in minibatches:
 						(minibatch_X, minibatch_Y) = minibatch
-						#aug_images, aug_labels = self.get_augmented_images(minibatch_X, minibatch_Y, epoch)
-						#minibatch_X = np.append(minibatch_X, aug_images, axis = 0)
-						#minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
+						aug_images, aug_labels = self.get_augmented_images(minibatch_X, minibatch_Y, epoch)
+						if len(aug_images):
+							minibatch_X = np.append(minibatch_X, aug_images, axis = 0)
+							minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
 						_ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y, keep_prob: 0.5})
 						minibatch_cost += temp_cost / num_minibatches
 
@@ -212,12 +213,12 @@ class TrafficSignsClassifier:
 						print ("############ EPOCH %i SUMMARY: ############" % epoch)
 						print("Copy of model saved...")
 						print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
-						pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test,  keep_prob: 1.0})
-						print('Validation Data Accuracy: {} %'.format(train_acc*100))
-						print('Test Data Accuracy: {} %'.format(acc*100))
+						#pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
+						#print('Validation Data Accuracy: {} %'.format(train_acc*100))
+						#print('Test Data Accuracy: {} %'.format(acc*100))
 						print ('############################################')
 
-				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test})
+				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
 				print('Test Accuracy: {} %'.format(acc*100))
 				self.plot_failed_cases(eq, pred)
 
