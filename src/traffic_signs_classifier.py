@@ -9,7 +9,6 @@ import os # file operations
 import math
 import csv
 
-from sklearn.model_selection import train_test_split
 from plot_utils import visualize_dataset
 from img_utils import get_train_images, get_test_images, preprocess_images, transform_image
 #############################################################
@@ -29,17 +28,23 @@ class TrafficSignsClassifier:
 		self.y_test = None
 
 
-	def train_test_images(self, train_images, train_labels, test_images, test_labels):
-		#labels = np_utils.to_categorical(labels, NUM_CLASSES)
+	def train_validation_test_split(self, train_images, train_labels,test_images, test_labels, split_size = 5):
 		train_labels = np.array(train_labels, dtype=np.int8)
 		train_labels = self.convert_to_one_hot(train_labels, NUM_CLASSES)
 		test_labels = np.array(test_labels, dtype=np.int8)
 		test_labels = self.convert_to_one_hot(test_labels, NUM_CLASSES)
-		self.x_train, self.x_validation, self.y_train, self.y_validation = train_test_split(train_images, train_labels, test_size=0.08)
+
+		train_dataset_size = len(train_images)
+		num_validation_images = int(train_dataset_size * split_size/100)
+		is_for_training = np.ones(train_dataset_size, dtype=bool)
+		validation_imgs_idx = np.random.choice(np.arange(train_dataset_size), num_validation_images, replace=False)
+		is_for_training[validation_imgs_idx] = False
+
+		self.x_train = train_images[is_for_training]
+		self.y_train = train_labels[is_for_training]
+		self.x_validation = train_images[~is_for_training]
+		self.y_validation = train_labels[~is_for_training]
 		self.x_test, self.y_test = test_images, test_labels
-		self.x_train = self.x_train.reshape(self.x_train.shape[0], self.x_train.shape[1], self.x_train.shape[2], 3)
-		self.x_test = self.x_test.reshape(self.x_test.shape[0], self.x_test.shape[1], self.x_test.shape[2], 3)
-		self.x_validation = self.x_validation.reshape(self.x_validation.shape[0], self.x_validation.shape[1], self.x_validation.shape[2], 3)
 
 	def create_placeholders(self, nH, nW, nC, nY):
 
@@ -97,18 +102,17 @@ class TrafficSignsClassifier:
 		P2 = tf.contrib.layers.flatten(P2)
 		
 		#fully connected
-		Z3_1 = tf.contrib.layers.fully_connected(P2, 256, activation_fn=None)
+		FC_1 = tf.contrib.layers.fully_connected(P2, 256, activation_fn=None)
 
-		drop_out1 = tf.nn.dropout(Z3_1, keep_prob)
+		drop_out_1 = tf.nn.dropout(FC_1, keep_prob)
 		
-		#fully connected
-		Z3_2 = tf.contrib.layers.fully_connected(drop_out1, 128, activation_fn=None)
+		FC_2 = tf.contrib.layers.fully_connected(drop_out_1, 128, activation_fn=None)
 		
-		drop_out = tf.nn.dropout(Z3_2, keep_prob)
+		drop_out_2 = tf.nn.dropout(FC_2, keep_prob)
 
-		Z3_3 = tf.contrib.layers.fully_connected(drop_out, 80, activation_fn=None)
+		FC_3 = tf.contrib.layers.fully_connected(drop_out_2, 80, activation_fn=None)
 
-		Z3 = tf.contrib.layers.fully_connected(Z3_3, NUM_CLASSES, activation_fn=None)
+		Z3 = tf.contrib.layers.fully_connected(FC_3, NUM_CLASSES, activation_fn=None)
 
 		return Z3
 
@@ -213,12 +217,13 @@ class TrafficSignsClassifier:
 						print ("############ EPOCH %i SUMMARY: ############" % epoch)
 						print("Copy of model saved...")
 						print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
-						#pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
-						#print('Validation Data Accuracy: {} %'.format(train_acc*100))
-						#print('Test Data Accuracy: {} %'.format(acc*100))
+						test_img_range = (epoch*100, (epoch+10)*100)
+						pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[test_img_range[0]:test_img_range[1]], Y: self.y_test[test_img_range[0]:test_img_range[1]], keep_prob: 1.0})
+						print('Validation Data Accuracy: {} %'.format(train_acc*100))
+						print('Test Data Accuracy: {} %'.format(acc*100))
 						print ('############################################')
 
-				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
+				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[0:100], Y: self.y_test[0:100], keep_prob: 1.0})
 				print('Test Accuracy: {} %'.format(acc*100))
 				self.plot_failed_cases(eq, pred)
 
@@ -241,5 +246,5 @@ if __name__ == "__main__":
 	preprocessed_train_images = preprocess_images(train_images, False)
 	preprocessed_test_images = preprocess_images(test_images, False)
 	traffic_sign_classifier = TrafficSignsClassifier()
-	traffic_sign_classifier.train_test_images(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
+	traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
 	traffic_sign_classifier.build_model()

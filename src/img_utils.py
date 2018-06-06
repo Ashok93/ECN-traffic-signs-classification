@@ -40,7 +40,7 @@ def get_test_images(img_path):
 		return images, labels
 
 
-def preprocess_images(images, to_gray = True, size=(30,30)):
+def preprocess_images(images, to_gray = False, size=(30,30)):
 		processed_imgs = []
 		for image in images:
 			image = cv2.resize(image, (size[0], size[1]), interpolation=cv2.INTER_LINEAR)
@@ -57,42 +57,36 @@ def preprocess_images(images, to_gray = True, size=(30,30)):
 def augment_brightness_camera_images(image):
     image1 = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
     random_bright = .12+np.random.uniform()
-    #print(random_bright)
     image1[:,:,2] = image1[:,:,2]*random_bright
     image1 = cv2.cvtColor(image1,cv2.COLOR_HSV2RGB)
     return image1
 
-def transform_image(img,ang_range,shear_range,trans_range):
+def transform_image(img,max_rotation,max_shear,max_translation):
     '''
-    This function transforms images to generate new images.
-    The function takes in following arguments,
-    1- Image
-    2- ang_range: Range of angles for rotation
-    3- shear_range: Range of values to apply affine transform to
-    4- trans_range: Range of values to apply translations over. 
-    
-    A Random uniform distribution is used to generate different parameters for transformation
-    
+    Helper functions for augmenting images.
+    https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_geometric_transformations/py_geometric_transformations.html
+    Uses cv2.warpAffine() function
+    Outputs:
+    Random rotated image in range (-max_rotation to max_rotation)
+    Random translated image in range (-max_translation to max_translation)
+    Random sheared image with max_shear
+    returns the image after applying all three operations.
     '''
-    # Rotation
-
-    ang_rot = np.random.uniform(ang_range)-ang_range/2
+    # Rotation 
+    ang_rotation = np.random.uniform(-max_rotation, max_rotation)
     rows,cols,ch = img.shape    
-    Rot_M = cv2.getRotationMatrix2D((cols/2,rows/2),ang_rot,1)
+    Rot_M = cv2.getRotationMatrix2D((cols/2,rows/2),ang_rotation,1)
 
     # Translation
-    tr_x = trans_range*np.random.uniform()-trans_range/2
-    tr_y = trans_range*np.random.uniform()-trans_range/2
+    tr_x = np.random.uniform(-max_translation, max_translation)
+    tr_y = np.random.uniform(-max_translation, max_translation)
     Trans_M = np.float32([[1,0,tr_x],[0,1,tr_y]])
 
     # Shear
     pts1 = np.float32([[5,5],[20,5],[5,20]])
 
-    pt1 = 5+shear_range*np.random.uniform()-shear_range/2
-    pt2 = 20+shear_range*np.random.uniform()-shear_range/2
-    
-    # Brightness 
-    
+    pt1 = 5+np.random.uniform(-max_shear, max_shear)
+    pt2 = 20+np.random.uniform(-max_shear, max_shear)
 
     pts2 = np.float32([[pt1,5],[pt2,pt1],[5,pt2]])
 
