@@ -1,2 +1,2 @@
-model_checkpoint_path: "/home/ashok/Desktop/ECN-Sem-2/Project/models/new/my-model-0"
-all_model_checkpoint_paths: "/home/ashok/Desktop/ECN-Sem-2/Project/models/new/my-model-0"
+model_checkpoint_path: "/user/eleves/amuralidha2017/Desktop/Traffic_Signal_Recognition/ECN-traffic-signs-classification/models/new/my-model-25"
+all_model_checkpoint_paths: "/user/eleves/amuralidha2017/Desktop/Traffic_Signal_Recognition/ECN-traffic-signs-classification/models/new/my-model-25"

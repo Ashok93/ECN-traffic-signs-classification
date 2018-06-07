@@ -55,10 +55,10 @@ class TrafficSignsClassifier:
 		return X, Y, keep_prob
 
 	def initialize_parameters(self):
-		W1 = tf.get_variable("W1", shape = [5, 5, 3, 8], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W2 = tf.get_variable("W2", shape = [5, 5, 8, 32], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W3 = tf.get_variable("W3", shape = [3, 3, 32, 64], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-		W4 = tf.get_variable("W4", shape = [3, 3, 64, 128], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W1 = tf.get_variable("W1", shape = [5, 5, 3, 16], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W2 = tf.get_variable("W2", shape = [5, 5, 16, 32], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W3 = tf.get_variable("W3", shape = [3, 3, 32, 128], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+		W4 = tf.get_variable("W4", shape = [3, 3, 128, 256], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
 
 		return { "W1": W1, "W2":W2, "W3": W3, "W4": W4 }
 
@@ -155,7 +155,7 @@ class TrafficSignsClassifier:
 
 		return np.array(augmented_images), np.array(augmented_labels)
 
-	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 100, minibatch_size = 100, print_cost = True):
+	def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 30, minibatch_size = 100, print_cost = True):
 		costs = []
 		tf.set_random_seed(1)
 		seed = 3
@@ -217,14 +217,24 @@ class TrafficSignsClassifier:
 						print ("############ EPOCH %i SUMMARY: ############" % epoch)
 						print("Copy of model saved...")
 						print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
-						test_img_range = (epoch*100, (epoch+10)*100)
-						pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[test_img_range[0]:test_img_range[1]], Y: self.y_test[test_img_range[0]:test_img_range[1]], keep_prob: 1.0})
+						#test_img_range = (epoch*100, (epoch+10)*100)
+						#pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[test_img_range[0]:test_img_range[1]], Y: self.y_test[test_img_range[0]:test_img_range[1]], keep_prob: 1.0})
 						print('Validation Data Accuracy: {} %'.format(train_acc*100))
-						print('Test Data Accuracy: {} %'.format(acc*100))
+						#print('Test Data Accuracy: {} %'.format(acc*100))
 						print ('############################################')
-
-				pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[0:100], Y: self.y_test[0:100], keep_prob: 1.0})
-				print('Test Accuracy: {} %'.format(acc*100))
+				
+				#todo run the code below to whole test data set
+				test_minibatches = self.random_mini_batches(self.x_test, self.y_test, 1000)
+				total_test_accuracy = 0
+				for test_minibatch in test_minibatches:
+					test_minibatch_x, test_minibatch_y = test_minibatch
+					pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: test_minibatch_x, Y: test_minibatch_y, keep_prob: 1.0})
+					total_test_accuracy += acc
+					print('Test Accuracy: {} %'.format(acc*100))
+					
+				total_test_accuracy = (total_test_accuracy)/len(test_minibatches)
+				print('Final Test Accuracy: {} %'.format(total_test_accuracy*100))
+				
 				self.plot_failed_cases(eq, pred)
 
 	def save_model(self, sess, epoch):
