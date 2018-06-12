@@ -224,18 +224,19 @@ class TrafficSignsClassifier:
 						print ('############################################')
 				
 				#todo run the code below to whole test data set
-				test_minibatches = self.random_mini_batches(self.x_test, self.y_test, 1000)
-				total_test_accuracy = 0
-				for test_minibatch in test_minibatches:
-					test_minibatch_x, test_minibatch_y = test_minibatch
-					pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: test_minibatch_x, Y: test_minibatch_y, keep_prob: 1.0})
-					total_test_accuracy += acc
-					print('Test Accuracy: {} %'.format(acc*100))
-					
-				total_test_accuracy = (total_test_accuracy)/len(test_minibatches)
-				print('Final Test Accuracy: {} %'.format(total_test_accuracy*100))
-				
-				self.plot_failed_cases(eq, pred)
+#				test_minibatches = self.random_mini_batches(self.x_test, self.y_test, 1000)
+				pre, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
+#                total_test_accuracy = 0
+#				for test_minibatch in test_minibatches:
+#					test_minibatch_x, test_minibatch_y = test_minibatch
+#					pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: test_minibatch_x, Y: test_minibatch_y, keep_prob: 1.0})
+#					total_test_accuracy += acc
+#					print('Test Accuracy: {} %'.format(acc*100))
+#					
+#				total_test_accuracy = (total_test_accuracy)/len(test_minibatches)
+				print('Final Test Accuracy: {} %'.format(acc*100))
+#				
+#				self.plot_failed_cases(eq, pred)
 
 	def save_model(self, sess, epoch):
 		saver = tf.train.Saver()
