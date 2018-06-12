@@ -200,6 +200,7 @@ class TrafficSignsClassifier:
                 pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test,  keep_prob: 1.0})
                 print('Final Test Accuracy: {} %'.format(acc*100))
                 self.print_confusion_matrix(test_labels,pred)
+                self.plot_failed_cases(eq, pred)
             else:
                 for epoch in range(num_epochs):
                     minibatch_cost = 0.
@@ -243,11 +244,11 @@ class TrafficSignsClassifier:
 #                total_test_accuracy = (total_test_accuracy)/len(test_minibatches)
                 print('Final Test Accuracy: {} %'.format(acc*100))
                 self.print_confusion_matrix(test_labels,pre)
-                
+                self.plot_failed_cases(eq, pred)
 #                
                 
                 
-#                self.plot_failed_cases(eq, pred)
+                
     def print_confusion_matrix(self, label, prediction):
         label       = list(map(int, label))
         label       = np.asarray(label)
@@ -261,12 +262,6 @@ class TrafficSignsClassifier:
         self.plot_confusion_matrix(cnfn_matrix, classes=self.tf_classes,
                               title='Confusion matrix, without normalization')
         
-        # Plot normalized confusion matrix
-        plt.figure()
-        self.plot_confusion_matrix(cnfn_matrix, classes=self.tf_classes, normalize=True,
-                              title='Normalized confusion matrix')
-        
-
     def save_model(self, sess, epoch):
         saver = tf.train.Saver()
         saver.save(sess, MODEL_EXPORT_DIR + '/my-model', global_step = epoch)
@@ -279,37 +274,15 @@ class TrafficSignsClassifier:
         visualize_dataset(incorrect_images[0:24], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
         
 
-    def plot_confusion_matrix(self, cm, classes,
-                              normalize=False,
+    def plot_confusion_matrix(self, cm, classes,                             
                               title='Confusion matrix',
                               cmap=plt.cm.Blues):
-        """
-        This function prints and plots the confusion matrix.
-        Normalization can be applied by setting `normalize=True`.
-        """
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-            print("Normalized confusion matrix")
-        else:
-            print('Confusion matrix, without normalization')
-    
-        print(cm)
-    
-        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        #This function prints and plots the confusion matrix.
+        print('Confusion matrix, without normalization')    
+        print(cm)    
+        plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
         plt.title(title)
         plt.colorbar()
-        tick_marks = np.arange(len(classes))
-        plt.xticks(tick_marks, classes, rotation=45)
-        plt.yticks(tick_marks, classes)
-    
-        fmt = '.2f' if normalize else 'd'
-        thresh = cm.max() / 2.
-        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            plt.text(j, i, format(cm[i, j], fmt),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-    
-        plt.tight_layout()
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
     
