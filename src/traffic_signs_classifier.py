@@ -13,8 +13,6 @@ from plot_utils import visualize_dataset
 from img_utils import get_train_images, get_test_images, preprocess_images, transform_image
 
 import matplotlib.pyplot as plt
-
-from sklearn.metrics import confusion_matrix
 #############################################################
 
 NUM_CLASSES = 43
@@ -143,7 +141,11 @@ class TrafficSignsClassifier:
             mini_batch_Y = shuffled_Y[k * mini_batch_size : k * mini_batch_size + mini_batch_size,:]
             mini_batch = (mini_batch_X, mini_batch_Y)
             mini_batches.append(mini_batch)
-
+            
+        remaining_num_imgs = m - num_complete_minibatches*mini_batch_size
+        missed_batch = (shuffled_X[m-remaining_num_imgs:m], shuffled_Y[m-remaining_num_imgs:m])
+        mini_batches.append(missed_batch)
+        
         return mini_batches
 
     def convert_to_one_hot(self, Y, C):
@@ -196,10 +198,10 @@ class TrafficSignsClassifier:
             sess.run(init)
 
             if restore == True:
-                saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR))
-                pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test,  keep_prob: 1.0})
+                saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR)) 
+                pred, tru, eq, acc, shuffled_Y = self.run_test_in_batches(sess, [prediction, truth, equality, accuracy], X, Y, keep_prob, 1000)                
                 print('Final Test Accuracy: {} %'.format(acc*100))
-                self.print_confusion_matrix(test_labels,pred)
+                self.print_confusion_matrix(shuffled_Y,pred)
                 self.plot_failed_cases(eq, pred)
             else:
                 for epoch in range(num_epochs):
@@ -224,37 +226,46 @@ class TrafficSignsClassifier:
                         self.save_model(sess, epoch)
                         print ("############ EPOCH %i SUMMARY: ############" % epoch)
                         print("Copy of model saved...")
-                        print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
-                        #test_img_range = (epoch*100, (epoch+10)*100)
-                        #pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test[test_img_range[0]:test_img_range[1]], Y: self.y_test[test_img_range[0]:test_img_range[1]], keep_prob: 1.0})
+                        print ("[0:1000]Cost after epoch %i: %f" % (epoch, minibatch_cost))
                         print('Validation Data Accuracy: {} %'.format(train_acc*100))
-                        #print('Test Data Accuracy: {} %'.format(acc*100))
                         print ('############################################')
                 
-                #todo run the code below to whole test data set
-#                test_minibatches = self.random_mini_batches(self.x_test, self.y_test, 1000)
-                pre, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: self.x_test, Y: self.y_test, keep_prob: 1.0})
-#                total_test_accuracy = 0
-#                for test_minibatch in test_minibatches:
-#                    test_minibatch_x, test_minibatch_y = test_minibatch
-#                    pred, tru, eq, acc= sess.run([prediction, truth, equality, accuracy], feed_dict = {X: test_minibatch_x, Y: test_minibatch_y, keep_prob: 1.0})
-#                    total_test_accuracy += acc
-#                    print('Test Accuracy: {} %'.format(acc*100))
-#                    
-#                total_test_accuracy = (total_test_accuracy)/len(test_minibatches)
+                pred, tru, eq, acc, shuffled_Y = self.run_test_in_batches(sess, [prediction, truth, equality, accuracy], X, Y, keep_prob, 1000)
+               
                 print('Final Test Accuracy: {} %'.format(acc*100))
-                self.print_confusion_matrix(test_labels,pre)
+                self.print_confusion_matrix(shuffled_Y,pre)
                 self.plot_failed_cases(eq, pred)
-#                
                 
-                
+    
+    def run_test_in_batches(self, sess, information, X, Y, keep_prob, size=1000):
+        #todo run the code below to whole test data set
+        test_minibatches = self.random_mini_batches(self.x_test, self.y_test, 1000)
+        total_accuracy = 0
+        predictions = np.array([])
+        truth = np.array([])
+        equality = np.array([])
+        shuffled_Y = []
+        for test_minibatch in test_minibatches:
+            test_minibatch_x, test_minibatch_y = test_minibatch
+            pred, tru, eq, acc= sess.run(information, feed_dict = {X: test_minibatch_x, Y: test_minibatch_y, keep_prob: 1.0})
+            total_accuracy += acc
+            predictions = np.concatenate((predictions, pred), axis=0)
+            truth = np.concatenate((truth, tru), axis=0)
+            equality = np.concatenate((equality, eq), axis=0)
+            test_minibatch_y = test_minibatch_y.tolist()
+            shuffled_Y +=test_minibatch_y
+            
+            print('Test Accuracy: {} %'.format(acc*100))
+            
+        total_accuracy = (total_accuracy)/len(test_minibatches)
+        
+        return predictions, truth, equality, total_accuracy, np.array(shuffled_Y)
+        
                 
     def print_confusion_matrix(self, label, prediction):
-        label       = list(map(int, label))
-        label       = np.asarray(label)
-        prediction  = np.asarray(prediction)
-        cnfn_matrix = confusion_matrix(label, prediction)
-        
+        label = np.argmax(label, 1)
+        sess = tf.Session()
+        cnfn_matrix = sess.run(tf.confusion_matrix(label, prediction))
         np.set_printoptions(precision=2)
         
         # Plot non-normalized confusion matrix
@@ -268,9 +279,11 @@ class TrafficSignsClassifier:
 
     def plot_failed_cases(self, equality, prediction):
         incorrect = (equality == False)
-        incorrect_images = self.x_test[incorrect]
+        test_imgs = self.x_test
+        test_lbls = self.y_test
+        incorrect_images = test_imgs[incorrect]
         incorrect_predictions = prediction[incorrect]
-        correct_labels = np.argmax(self.y_test[incorrect], 1)
+        correct_labels = np.argmax(test_lbls[incorrect], 1)
         visualize_dataset(incorrect_images[0:24], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
         
 
