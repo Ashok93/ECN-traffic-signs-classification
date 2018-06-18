@@ -9,7 +9,7 @@ import os # file operations
 import math
 import csv
 
-from plot_utils import visualize_dataset
+from plot_utils import visualize_dataset, plot_confusion_matrix
 from img_utils import get_train_images, get_test_images, preprocess_images, transform_image
 
 import matplotlib.pyplot as plt
@@ -29,9 +29,6 @@ class TrafficSignsClassifier:
         self.y_validation = None
         self.x_test = None
         self.y_test = None
-        self.tf_classes     = list(range(NUM_CLASSES))
-        self.tf_classes = np.asarray(self.tf_classes)
-
 
     def train_validation_test_split(self, train_images, train_labels,test_images, test_labels, split_size = 5):
         train_labels = np.array(train_labels, dtype=np.int8)
@@ -226,7 +223,7 @@ class TrafficSignsClassifier:
                         self.save_model(sess, epoch)
                         print ("############ EPOCH %i SUMMARY: ############" % epoch)
                         print("Copy of model saved...")
-                        print ("[0:1000]Cost after epoch %i: %f" % (epoch, minibatch_cost))
+                        print ("Cost after epoch %i: %f" % (epoch, minibatch_cost))
                         print('Validation Data Accuracy: {} %'.format(train_acc*100))
                         print ('############################################')
                 
@@ -253,7 +250,7 @@ class TrafficSignsClassifier:
             truth = np.concatenate((truth, tru), axis=0)
             equality = np.concatenate((equality, eq), axis=0)
             test_minibatch_y = test_minibatch_y.tolist()
-            shuffled_Y +=test_minibatch_y
+            shuffled_Y += test_minibatch_y
             
             print('Test Accuracy: {} %'.format(acc*100))
             
@@ -270,7 +267,7 @@ class TrafficSignsClassifier:
         
         # Plot non-normalized confusion matrix
         plt.figure()
-        self.plot_confusion_matrix(cnfn_matrix, classes=self.tf_classes,
+        plot_confusion_matrix(cnfn_matrix, classes=label,
                               title='Confusion matrix, without normalization')
         
     def save_model(self, sess, epoch):
@@ -285,19 +282,6 @@ class TrafficSignsClassifier:
         incorrect_predictions = prediction[incorrect]
         correct_labels = np.argmax(test_lbls[incorrect], 1)
         visualize_dataset(incorrect_images[0:24], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
-        
-
-    def plot_confusion_matrix(self, cm, classes,                             
-                              title='Confusion matrix',
-                              cmap=plt.cm.Blues):
-        #This function prints and plots the confusion matrix.
-        print('Confusion matrix, without normalization')    
-        print(cm)    
-        plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-        plt.title(title)
-        plt.colorbar()
-        plt.ylabel('True label')
-        plt.xlabel('Predicted label')
     
 if __name__ == "__main__":
     train_img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
