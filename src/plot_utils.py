@@ -1,12 +1,6 @@
 import matplotlib.pyplot as plt # Plotting library (https://matplotlib.org/)
 
-def visualize_dataset(images, 
-					 to_gray = True, 
-					 fsize=(8,8), 
-					 rows = 5, 
-					 cols = 5, 
-					 labels = [], 
-					 predictions = []):
+def visualize_dataset(images, to_gray = True, fsize=(8,8), rows = 5, cols = 5, labels = [], predictions = []):
 
 		fig = plt.figure(figsize=fsize)
 		num_imgs = images.shape[0]
@@ -27,10 +21,7 @@ def visualize_dataset(images,
 		plt.tight_layout()
 		plt.show()
 
-def plot_confusion_matrix(cm, 
-						 classes,                             
-                         title='Confusion matrix',
-                         cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, classes, title='Confusion matrix', cmap=plt.cm.Blues):
 
         #This function prints and plots the confusion matrix.
         print('Confusion matrix, without normalization')    
