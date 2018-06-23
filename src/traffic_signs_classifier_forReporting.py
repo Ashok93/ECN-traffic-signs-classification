@@ -35,8 +35,9 @@ class TrafficSignsClassifier:
         self.y_test = None
         self.tf_classes     = list(range(NUM_CLASSES))
         self.tf_classes = np.asarray(self.tf_classes)
-
-
+        self.train_errors = list()
+        self.test_errors = list()
+        self.train_cost = list()
     def train_validation_test_split(self, train_images, train_labels,test_images, test_labels, split_size = 5):
         train_labels = np.array(train_labels, dtype=np.int8)
         train_labels = self.convert_to_one_hot(train_labels, NUM_CLASSES)
@@ -168,7 +169,7 @@ class TrafficSignsClassifier:
 
         return np.array(augmented_images), np.array(augmented_labels)
 
-    def build_model(self, restore = True, learning_rate = 0.001, num_epochs = 30, minibatch_size = 100, print_cost = True):
+    def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 30, minibatch_size = 100, print_cost = True):
         costs = []
         tf.set_random_seed(1)
         seed = 3
@@ -225,12 +226,15 @@ class TrafficSignsClassifier:
                             minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
                             _ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y, keep_prob: 0.5})
                         minibatch_cost += temp_cost / num_minibatches
-
+                    
+                    self.train_cost.append(minibatch_cost)            
+                    
                     if print_cost == True:
                         train_acc= sess.run(accuracy, feed_dict = {X: self.x_validation, Y: self.y_validation, keep_prob: 1.0})
                         print('Validation Data Accuracy: {} %'.format(train_acc*100))
-                        costs.append(minibatch_cost)
-
+                        costs.append(minibatch_cost)                       
+                        self.train_errors.append(train_acc)
+                        
                     if print_cost == True and epoch % 5 == 0:
                         self.save_model(sess, epoch)
                         print ("############ EPOCH %i SUMMARY: ############" % epoch)
@@ -263,7 +267,7 @@ class TrafficSignsClassifier:
             equality = np.concatenate((equality, eq), axis=0)
             test_minibatch_y = test_minibatch_y.tolist()
             shuffled_Y +=test_minibatch_y
-            
+            self.test_errors.append(acc)
             print('Test Accuracy: {} %'.format(acc*100))
             
         total_accuracy = (total_accuracy)/len(test_minibatches)
@@ -372,7 +376,36 @@ class TrafficSignsClassifier:
             plt.imshow(image)
             a.set_title(title)
         fig.set_size_inches(np.array(fig.get_size_inches()) * n_images)
-        plt.show()        
+        plt.show()  
+        
+    def plot_learning_curve(self):
+        plt.figure(figsize=(8,6))
+        plt.title('Learning Curve')
+        
+        plt.tight_layout()
+        
+        if len(self.train_errors) > 0:
+            plt.legend(['Training Error'])
+            plt.plot([1 - el for el in self.train_errors])    
+        else:
+            plt.legend(['Test Error'])
+            plt.plot([1 - el for el in self.test_errors])  
+            
+        plt.ylim([-.01,0.2])        
+        plt.savefig('learning_curve.png')
+        plt.ylabel('Error')
+        plt.xlabel('Epoch');
+        
+    def plot_cost(self):
+        plt.figure(figsize=(8,6))
+        plt.title('Cost')        
+        plt.tight_layout()        
+        plt.legend(['Cost'])
+        plt.plot([el for el in self.train_cost])             
+        plt.savefig('Training_Cost.png')
+        plt.ylabel('Cost')
+        plt.xlabel('Epoch');
+        return self.train_cost
 
 if __name__ == "__main__":
     train_img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
@@ -384,3 +417,5 @@ if __name__ == "__main__":
     traffic_sign_classifier = TrafficSignsClassifier()
     traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
     traffic_sign_classifier.build_model()
+    traffic_sign_classifier.plot_learning_curve()
+    cost = traffic_sign_classifier.plot_cost()
