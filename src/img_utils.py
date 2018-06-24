@@ -44,7 +44,7 @@ def get_new_test_images(img_path):
 		images = []
 		labels = []
 
-		gtFile = open(img_path + '/GT-00034.csv') # annotations file
+		gtFile = open(img_path + '/newtest.csv') # annotations file
 		gtReader = csv.reader(gtFile, delimiter=';') # csv parser for annotations file
 		next(gtReader) # skip header
 
