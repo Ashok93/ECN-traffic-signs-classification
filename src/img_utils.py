@@ -7,59 +7,52 @@ import matplotlib.pyplot as plt # Plotting library (https://matplotlib.org/)
 
 def get_train_images(img_path):
 
-		images = []
-		labels = []
+	images = []
+	labels = []
 
-		for c in range(0,43):
-			prefix = img_path + '/' + format(c, '05d') + '/' # subdirectory for class
-			gtFile = open(prefix + 'GT-'+ format(c, '05d') + '.csv') # annotations file
-			gtReader = csv.reader(gtFile, delimiter=';') # csv parser for annotations file
-			next(gtReader) # skip header
-
-			for row in gtReader:
-				images.append(plt.imread(prefix + row[0])) # the 1th column is the filename
-				labels.append(row[7]) # the 8th column is the label
-			gtFile.close()
-
-		return images, labels
-
-def get_test_images(img_path):
-
-		images = []
-		labels = []
-
-		gtFile = open(img_path + '/GT-final_test.csv') # annotations file
+	for c in range(0,43):
+		prefix = img_path + '/' + format(c, '05d') + '/' # subdirectory for class
+		gtFile = open(prefix + 'GT-'+ format(c, '05d') + '.csv') # annotations file
 		gtReader = csv.reader(gtFile, delimiter=';') # csv parser for annotations file
 		next(gtReader) # skip header
 
 		for row in gtReader:
-			images.append(plt.imread(img_path + '/' + row[0])) # the 1th column is the filename
+			images.append(plt.imread(prefix + row[0])) # the 1th column is the filename
 			labels.append(row[7]) # the 8th column is the label
 		gtFile.close()
 
-		return images, labels
+	return images, labels
+
+def get_test_images(img_path):
+
+	images = []
+	labels = []
+
+	gtFile = open(img_path + '/GT-final_test.csv') # annotations file
+	gtReader = csv.reader(gtFile, delimiter=';') # csv parser for annotations file
+	next(gtReader) # skip header
+
+	for row in gtReader:
+		images.append(plt.imread(img_path + '/' + row[0])) # the 1th column is the filename
+		labels.append(row[7]) # the 8th column is the label
+	gtFile.close()
+
+	return images, labels
 
 
 def preprocess_images(images, to_gray = False, size=(30,30)):
-		processed_imgs = []
-		for image in images:
-			image = cv2.resize(image, (size[0], size[1]), interpolation=cv2.INTER_LINEAR)
-			if to_gray:
-				image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-				image = cv2.equalizeHist(image)
+	processed_imgs = []
+	for image in images:
+		image = cv2.resize(image, (size[0], size[1]), interpolation=cv2.INTER_LINEAR)
+		if to_gray:
+			image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+			image = cv2.equalizeHist(image)
 
-			norm_image = cv2.normalize(image, image, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+		norm_image = cv2.normalize(image, image, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
-			processed_imgs.append(norm_image)
+		processed_imgs.append(norm_image)
 
-		return processed_imgs
-
-def augment_brightness_camera_images(image):
-    image1 = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
-    random_bright = .12+np.random.uniform()
-    image1[:,:,2] = image1[:,:,2]*random_bright
-    image1 = cv2.cvtColor(image1,cv2.COLOR_HSV2RGB)
-    return image1
+	return processed_imgs
 
 def transform_image(img,max_rotation,max_shear,max_translation):
     '''
@@ -95,7 +88,5 @@ def transform_image(img,max_rotation,max_shear,max_translation):
     img = cv2.warpAffine(img,Rot_M,(cols,rows))
     img = cv2.warpAffine(img,Trans_M,(cols,rows))
     img = cv2.warpAffine(img,shear_M,(cols,rows))
-
-    img = augment_brightness_camera_images(img)
     
     return img
