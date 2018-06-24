@@ -10,7 +10,7 @@ import math
 import csv
 import sklearn.metrics 
 from plot_utils import visualize_dataset
-from img_utils import get_train_images, get_test_images, preprocess_images, transform_image
+from img_utils import get_train_images, get_test_images, preprocess_images, transform_image, get_new_test_images
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from pandas_ml import ConfusionMatrix
@@ -23,6 +23,7 @@ NUM_CLASSES = 43
 curr_dirname = os.path.dirname(os.path.abspath(__file__))
 project_root_dir = os.path.dirname(os.path.abspath(curr_dirname))
 MODEL_EXPORT_DIR = os.path.join(project_root_dir, 'models/new')
+NEW_TEST_DIR = os.path.join(project_root_dir, 'NewTestImages')                
 cmo = 0
 
 class TrafficSignsClassifier:
@@ -169,7 +170,7 @@ class TrafficSignsClassifier:
 
         return np.array(augmented_images), np.array(augmented_labels)
 
-    def build_model(self, restore = False, learning_rate = 0.001, num_epochs = 30, minibatch_size = 100, print_cost = True):
+    def build_model(self, restore = True, learning_rate = 0.0001, num_epochs = 100, minibatch_size = 100, print_cost = True):
         costs = []
         tf.set_random_seed(1)
         seed = 3
@@ -386,12 +387,12 @@ class TrafficSignsClassifier:
         
         if len(self.train_errors) > 0:
             plt.legend(['Training Error'])
-            plt.plot([1 - el for el in self.train_errors])    
+            plt.plot([1-el for el in self.train_errors])    
         else:
             plt.legend(['Test Error'])
-            plt.plot([1 - el for el in self.test_errors])  
+            plt.plot([1-el for el in self.test_errors])  
             
-        plt.ylim([-.01,0.2])        
+#        plt.ylim([-.01,0.2])        
         plt.savefig('learning_curve.png')
         plt.ylabel('Error')
         plt.xlabel('Epoch');
@@ -406,6 +407,26 @@ class TrafficSignsClassifier:
         plt.ylabel('Cost')
         plt.xlabel('Epoch');
         return self.train_cost
+    
+    def softMaxProb(self,test_x,test_y):
+        
+        (m, nH, nW, nC) = self.x_train.shape
+        nY = self.y_train.shape[1]
+        X, Y, keep_prob = self.create_placeholders(nH, nW, nC, nY)        
+        parameters = self.initialize_parameters()
+        Z3 = self.forward_propagation(X, parameters, keep_prob)
+        init = tf.global_variables_initializer()
+        saver = tf.train.Saver()
+        softmax_logits = tf.nn.softmax(Z3)
+        top_k = tf.nn.top_k(softmax_logits, k=5)
+        
+        with tf.Session() as sess:
+            sess.run(init)            
+            saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR)) 
+            my_softmax_logits = sess.run(softmax_logits, feed_dict = {X: test_x, Y: test_y, keep_prob: 1.0})
+            my_top_k          = sess.run(top_k,          feed_dict = {x: test_x, keep_prob: 1.0})              
+            return my_softmax_logits,my_top_k
+            
 
 if __name__ == "__main__":
     train_img_path = os.path.join(project_root_dir, 'GTSRB/Final_Training/Images')
@@ -416,6 +437,17 @@ if __name__ == "__main__":
     preprocessed_test_images = preprocess_images(test_images, False)
     traffic_sign_classifier = TrafficSignsClassifier()
     traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
-    traffic_sign_classifier.build_model()
-    traffic_sign_classifier.plot_learning_curve()
-    cost = traffic_sign_classifier.plot_cost()
+#    traffic_sign_classifier.build_model()
+#    traffic_sign_classifier.plot_learning_curve()
+#    cost = traffic_sign_classifier.plot_cost()
+
+    new_test_images, new_test_labels = get_new_test_images(NEW_TEST_DIR)
+    preprocessed_new_test_images = preprocess_images(new_test_images, False)
+    soft, top = traffic_sign_classifier.softMaxProb(preprocessed_new_test_images,new_test_labels)
+   
+    
+    
+    
+    
+    
+    

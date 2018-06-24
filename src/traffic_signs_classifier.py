@@ -30,7 +30,10 @@ class TrafficSignsClassifier:
         self.y_validation = None
         self.x_test = None
         self.y_test = None
-
+        self.train_errors = list()
+        self.test_errors = list()
+        self.train_cost = list()
+        
     def train_validation_test_split(self, train_images, train_labels,test_images, test_labels, split_size = 5):
         train_labels = np.array(train_labels, dtype=np.int8)
         train_labels = self.convert_to_one_hot(train_labels, NUM_CLASSES)
@@ -60,7 +63,7 @@ class TrafficSignsClassifier:
         return X, Y, keep_prob
 
     def initialize_parameters(self):
-    	# Weights initialization
+        # Weights initialization
         W1 = tf.get_variable("W1", shape = [5, 5, 3, 16], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
         W2 = tf.get_variable("W2", shape = [5, 5, 16, 32], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
         W3 = tf.get_variable("W3", shape = [3, 3, 32, 128], initializer = tf.contrib.layers.xavier_initializer(seed = 0))
@@ -69,10 +72,10 @@ class TrafficSignsClassifier:
         return { "W1": W1, "W2":W2, "W3": W3, "W4": W4 }
 
     def forward_propagation(self, X, parameters, keep_prob):
-    	'''
-    	MODEL ARCHITECTURE:
-    	CONV --> ReLU --> CONV --> ReLU --> POOL --> CONV --> ReLU --> CONV --> ReLU --> POOL --> FC_1 --> FC_2 --> Output :)
-    	'''
+        '''
+        MODEL ARCHITECTURE:
+        CONV --> ReLU --> CONV --> ReLU --> POOL --> CONV --> ReLU --> CONV --> ReLU --> POOL --> FC_1 --> FC_2 --> Output :)
+        '''
         W1 = parameters["W1"]
         W2 = parameters["W2"]
         W3 = parameters["W3"]
@@ -162,12 +165,12 @@ class TrafficSignsClassifier:
         return mini_batches
 
     def convert_to_one_hot(self, Y, C):
-    	# Details about one hot: https://machinelearningmastery.com/why-one-hot-encode-data-in-machine-learning/
+        # Details about one hot: https://machinelearningmastery.com/why-one-hot-encode-data-in-machine-learning/
         Y = np.eye(C)[Y.reshape(-1)]
         return Y
 
     def get_augmented_images(self, images, labels, epoch):
-    	# Image augmentation. The number of augmented image is is proportional to 50/epoch+1
+        # Image augmentation. The number of augmented image is is proportional to 50/epoch+1
         augmented_images = []
         augmented_labels = []
         len_img = len(images)
@@ -180,23 +183,23 @@ class TrafficSignsClassifier:
         return np.array(augmented_images), np.array(augmented_labels)
 
     def visualize_filters(self, A1, A2, A3, A4, image, sess, X, keep_prob):
-    	# This function is purely for visulization purpose. We visualize different activation layers
-    	activation_units_1 = A1.eval(session=sess,feed_dict={X:image.reshape(1,30,30,3),keep_prob:1.0})
-    	activation_units_2 = A2.eval(session=sess,feed_dict={A1:activation_units_1,keep_prob:1.0})
-    	activation_units_3 = A3.eval(session=sess,feed_dict={A2:activation_units_2,keep_prob:1.0})
-    	activation_units_4 = A4.eval(session=sess,feed_dict={A3:activation_units_3,keep_prob:1.0})
-    	
-    	activations = [activation_units_1, activation_units_2, activation_units_3, activation_units_4]
-    	
-    	for activation in activations:
-	    	num_of_filters = activation.shape[3]
-	    	filtered_images = []
-	    	for i in range(num_of_filters):
-	    		filtered_images.append(activation[0,:,:,i-1])
+        # This function is purely for visulization purpose. We visualize different activation layers
+        activation_units_1 = A1.eval(session=sess,feed_dict={X:image.reshape(1,30,30,3),keep_prob:1.0})
+        activation_units_2 = A2.eval(session=sess,feed_dict={A1:activation_units_1,keep_prob:1.0})
+        activation_units_3 = A3.eval(session=sess,feed_dict={A2:activation_units_2,keep_prob:1.0})
+        activation_units_4 = A4.eval(session=sess,feed_dict={A3:activation_units_3,keep_prob:1.0})
+        
+        activations = [activation_units_1, activation_units_2, activation_units_3, activation_units_4]
+        
+        for activation in activations:
+            num_of_filters = activation.shape[3]
+            filtered_images = []
+            for i in range(num_of_filters):
+                filtered_images.append(activation[0,:,:,i-1])
 
-	    	visualize_dataset(np.array(filtered_images)[0:15], True, (6,6), 4, 4)
+            visualize_dataset(np.array(filtered_images)[0:15], True, (6,6), 4, 4)
 
-    def build_model(self, restore = True, learning_rate = 0.001, num_epochs = 30, minibatch_size = 100, print_cost = True):
+    def build_model(self, restore = True, learning_rate = 0.0001, num_epochs = 50, minibatch_size = 100, print_cost = True):
         costs = []
         accuracys = []
         
@@ -261,12 +264,15 @@ class TrafficSignsClassifier:
                             minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
                         _ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y, keep_prob: 0.5})
                         minibatch_cost += temp_cost / num_minibatches
-
+                        
+                    self.train_cost.append(minibatch_cost)  
+                    
                     if print_cost == True:
                         train_acc= sess.run(accuracy, feed_dict = {X: self.x_validation, Y: self.y_validation, keep_prob: 1.0})
                         print('Validation Data Accuracy: {} %'.format(train_acc*100))
                         costs.append(minibatch_cost)
                         accuracys.append(train_acc)
+                        self.train_errors.append(train_acc)
 
                     if print_cost == True and epoch % 5 == 0:
                         self.save_model(sess, epoch)
@@ -281,7 +287,7 @@ class TrafficSignsClassifier:
                 print('Final Test Accuracy: {} %'.format(acc*100))
                 
                 # Visualization utility functions
-                self.print_confusion_matrix(shuffled_Y,pre)
+                self.print_confusion_matrix(shuffled_Y,pred)
                 self.plot_failed_cases(eq, pred)
                 self.visualize_filters(A1, A2, A3, A4, self.x_train[20], sess, X, keep_prob)
     
@@ -307,6 +313,7 @@ class TrafficSignsClassifier:
             equality = np.concatenate((equality, eq), axis=0)
             test_minibatch_y = test_minibatch_y.tolist()
             shuffled_Y += test_minibatch_y
+            self.test_errors.append(acc)
             
         total_accuracy = (total_accuracy)/len(test_minibatches)
         
@@ -337,6 +344,35 @@ class TrafficSignsClassifier:
 
         visualize_dataset(incorrect_images[25:50], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
     
+    def plot_learning_curve(self):
+        plt.figure(figsize=(8,6))
+        plt.title('Learning Curve')
+        
+        plt.tight_layout()
+        
+        if len(self.train_errors) > 0:
+            plt.legend(['Training Error'])
+            plt.plot([1-el for el in self.train_errors])    
+        else:
+            plt.legend(['Test Error'])
+            plt.plot([1-el for el in self.test_errors])  
+            
+#        plt.ylim([-.01,0.2])        
+        plt.savefig('learning_curve.png')
+        plt.ylabel('Error')
+        plt.xlabel('Epoch');
+        
+    def plot_cost(self):
+        plt.figure(figsize=(8,6))
+        plt.title('Cost')        
+        plt.tight_layout()        
+        plt.legend(['Cost'])
+        plt.plot([el for el in self.train_cost])             
+        plt.savefig('Training_Cost.png')
+        plt.ylabel('Cost')
+        plt.xlabel('Epoch');
+        return self.train_cost
+    
 
 if __name__ == "__main__":
     
@@ -357,4 +393,6 @@ if __name__ == "__main__":
     # Model building and evaluation
     traffic_sign_classifier = TrafficSignsClassifier()
     traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
-    traffic_sign_classifier.build_model(restore = True)
+    traffic_sign_classifier.build_model(restore = False)
+    traffic_sign_classifier.plot_learning_curve()
+    cost = traffic_sign_classifier.plot_cost()
