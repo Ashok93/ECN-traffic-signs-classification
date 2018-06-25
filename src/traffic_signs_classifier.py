@@ -339,7 +339,7 @@ class TrafficSignsClassifier:
         incorrect_predictions = prediction[incorrect]
         correct_labels = np.argmax(test_lbls[incorrect], 1)
 
-        visualize_dataset(incorrect_images[25:50], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
+        visualize_dataset(incorrect_images[25:50], False, (8,8), 5, 5, correct_labels[25:50], incorrect_predictions[25:50])
     
     def softMaxProb(self,test_x,test_y):
         
@@ -380,7 +380,7 @@ if __name__ == "__main__":
     # Model building and evaluation
     traffic_sign_classifier = TrafficSignsClassifier()
     traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
-    traffic_sign_classifier.build_model(restore = False)
+    traffic_sign_classifier.build_model(restore = True)
 
     # test on some new dataset from internet. Add 4 images in the folder. Also to change the CSV file as it is used to read the images.
     new_test_images, new_test_labels = get_new_test_images(NEW_TEST_DIR)
