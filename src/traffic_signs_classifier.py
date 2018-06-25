@@ -8,7 +8,7 @@ import math
 import csv
 
 # Helper function files - plot_utils.py and img_utils.py
-from plot_utils import visualize_dataset, plot_confusion_matrix, visualize_training_data_distribution
+from plot_utils import visualize_dataset, plot_confusion_matrix, visualize_training_data_distribution, plot_learning_curve, plot_cost, plot_predict
 from img_utils import get_train_images, get_test_images, preprocess_images, transform_image, get_new_test_images
 import matplotlib.pyplot as plt
 #############################################################
@@ -19,7 +19,7 @@ NUM_CLASSES = 43
 curr_dirname = os.path.dirname(os.path.abspath(__file__))
 project_root_dir = os.path.dirname(os.path.abspath(curr_dirname))
 MODEL_EXPORT_DIR = os.path.join(project_root_dir, 'models/new')
-NEW_TEST_DIR = os.path.join(project_root_dir, 'NewTestImages')
+NEW_TEST_DIR = os.path.join(project_root_dir, 'new_test_images')
 ##################################################################
 
 class TrafficSignsClassifier:
@@ -30,9 +30,6 @@ class TrafficSignsClassifier:
         self.y_validation = None
         self.x_test = None
         self.y_test = None
-        self.train_errors = list()
-        self.test_errors = list()
-        self.train_cost = list()
         
     def train_validation_test_split(self, train_images, train_labels,test_images, test_labels, split_size = 5):
         train_labels = np.array(train_labels, dtype=np.int8)
@@ -135,7 +132,6 @@ class TrafficSignsClassifier:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits = output, labels = Y))
         return cost
 
-
     def random_mini_batches(self, X, Y, mini_batch_size = 64, seed = 0):
         # This code was adapted from deeplearning.ai online course.
         # Randomly split data into minibatches
@@ -199,7 +195,7 @@ class TrafficSignsClassifier:
 
             visualize_dataset(np.array(filtered_images)[0:15], True, (6,6), 4, 4)
 
-    def build_model(self, restore = True, learning_rate = 0.0001, num_epochs = 50, minibatch_size = 100, print_cost = True):
+    def build_model(self, restore = True, learning_rate = 0.0001, num_epochs = 2, minibatch_size = 100, print_cost = True):
         costs = []
         accuracys = []
         
@@ -240,10 +236,11 @@ class TrafficSignsClassifier:
                 pred, tru, eq, acc, shuffled_Y = self.run_test_in_batches(sess, [prediction, truth, equality, accuracy], X, Y, keep_prob, 1000)                
                 print('Final Test Accuracy: {} %'.format(acc*100))
                 
-                # Visualization utility functions
-                self.print_confusion_matrix(shuffled_Y,pred)
-                self.plot_failed_cases(eq, pred)
-                self.visualize_filters(A1, A2, A3, A4, self.x_train[20], sess, X, keep_prob)
+                # Visualization utility functions - Please feel free to uncomment them one by one and see their functions.
+                
+                # self.print_confusion_matrix(shuffled_Y,pred)
+                # self.plot_failed_cases(eq, pred)
+                # self.visualize_filters(A1, A2, A3, A4, self.x_train[20], sess, X, keep_prob)
             
             else: # start training process
                 
@@ -264,15 +261,13 @@ class TrafficSignsClassifier:
                             minibatch_Y = np.append(minibatch_Y, aug_labels, axis = 0)
                         _ , temp_cost = sess.run([optimizer, cost], feed_dict = {X: minibatch_X, Y: minibatch_Y, keep_prob: 0.5})
                         minibatch_cost += temp_cost / num_minibatches
-                        
-                    self.train_cost.append(minibatch_cost)  
                     
+                    train_acc= sess.run(accuracy, feed_dict = {X: self.x_validation, Y: self.y_validation, keep_prob: 1.0})
+                    costs.append(minibatch_cost)
+                    accuracys.append(train_acc)
+
                     if print_cost == True:
-                        train_acc= sess.run(accuracy, feed_dict = {X: self.x_validation, Y: self.y_validation, keep_prob: 1.0})
                         print('Validation Data Accuracy: {} %'.format(train_acc*100))
-                        costs.append(minibatch_cost)
-                        accuracys.append(train_acc)
-                        self.train_errors.append(train_acc)
 
                     if print_cost == True and epoch % 5 == 0:
                         self.save_model(sess, epoch)
@@ -286,11 +281,14 @@ class TrafficSignsClassifier:
                
                 print('Final Test Accuracy: {} %'.format(acc*100))
                 
-                # Visualization utility functions
-                self.print_confusion_matrix(shuffled_Y,pred)
-                self.plot_failed_cases(eq, pred)
-                self.visualize_filters(A1, A2, A3, A4, self.x_train[20], sess, X, keep_prob)
-    
+                # Visualization utility functions - Please feel free to uncomment them one by one and see their functions.
+                
+                # self.print_confusion_matrix(shuffled_Y,pred)
+                # self.plot_failed_cases(eq, pred)
+                # self.visualize_filters(A1, A2, A3, A4, self.x_train[20], sess, X, keep_prob)
+                # plot_learning_curve(accuracys)
+                # plot_cost(costs)
+
     def run_test_in_batches(self, sess, information, X, Y, keep_prob, size=1000):
         # Splitting the test data into batches and running to model on the it 
         # to find the overall accuracy. Since our test batch contains about 12630 images,
@@ -313,7 +311,6 @@ class TrafficSignsClassifier:
             equality = np.concatenate((equality, eq), axis=0)
             test_minibatch_y = test_minibatch_y.tolist()
             shuffled_Y += test_minibatch_y
-            self.test_errors.append(acc)
             
         total_accuracy = (total_accuracy)/len(test_minibatches)
         
@@ -344,39 +341,11 @@ class TrafficSignsClassifier:
 
         visualize_dataset(incorrect_images[25:50], False, (8,8), 5, 5, correct_labels, incorrect_predictions)
     
-    def plot_learning_curve(self):
-        plt.figure(figsize=(8,6))
-        plt.title('Learning Curve')
-        
-        plt.tight_layout()
-        
-        if len(self.train_errors) > 0:
-            plt.legend(['Training Error'])
-            plt.plot([1-el for el in self.train_errors])    
-        else:
-            plt.legend(['Test Error'])
-            plt.plot([1-el for el in self.test_errors])  
-            
-#        plt.ylim([-.01,0.2])        
-        plt.savefig('learning_curve.png')
-        plt.ylabel('Error')
-        plt.xlabel('Epoch');
-        
-    def plot_cost(self):
-        plt.figure(figsize=(8,6))
-        plt.title('Cost')        
-        plt.tight_layout()        
-        plt.legend(['Cost'])
-        plt.plot([el for el in self.train_cost])             
-        plt.savefig('Training_Cost.png')
-        plt.ylabel('Cost')
-        plt.xlabel('Epoch');
-        return self.train_cost
-    
     def softMaxProb(self,test_x,test_y):
         
         (m, nH, nW, nC) = self.x_train.shape
         nY = self.y_train.shape[1]
+        tf.reset_default_graph()
         X, Y, keep_prob = self.create_placeholders(nH, nW, nC, nY)        
         parameters = self.initialize_parameters()
         d1,d2,d3,d4, Z5 = self.forward_propagation(X, parameters, keep_prob)
@@ -386,33 +355,11 @@ class TrafficSignsClassifier:
         top_k = tf.nn.top_k(softmax_logits, k=5)
         
         with tf.Session() as sess:
-            sess.run(init)            
+            sess.run(init)
             saver.restore(sess,tf.train.latest_checkpoint(MODEL_EXPORT_DIR)) 
-            my_top_k          = sess.run(top_k,          feed_dict = {X: test_x, keep_prob: 1.0})              
+            my_top_k = sess.run(top_k, feed_dict = {X: test_x, keep_prob: 1.0})
+
         return my_top_k
-    
-    def plot_predict(self, top, prob, fsize=(8,8), rows = 4, cols = 6):
-        
-        fig = plt.figure(figsize=fsize)
-        count = 1
-        for i in range(0, rows):
-#            #plot test image
-            ax = fig.add_subplot(rows, cols, count)                
-            count += 1
-            image = plt.imread(NEW_TEST_DIR + '/0' + str(i+1) + '.ppm')
-            plt.imshow(image)
-#                
-            for j in range(1, cols):
-                #plot guess class
-                ax = fig.add_subplot(rows, cols, count) 
-#                p  = float("{0:.100f}".format(prob[i][j-1]))
-                p  = prob[i][j-1]
-                ax.set_title(str(p))
-                count += 1
-                image = plt.imread(project_root_dir + '/sign_class/' + str(top[i][j-1]) + '.png')
-                plt.imshow(image)
-        plt.tight_layout()
-        plt.show()
 
 if __name__ == "__main__":
     
@@ -433,11 +380,10 @@ if __name__ == "__main__":
     # Model building and evaluation
     traffic_sign_classifier = TrafficSignsClassifier()
     traffic_sign_classifier.train_validation_test_split(np.array(preprocessed_train_images), train_labels, np.array(preprocessed_test_images), test_labels)
-#    traffic_sign_classifier.build_model(restore = True)
-#    traffic_sign_classifier.plot_learning_curve()
-#    cost = traffic_sign_classifier.plot_cost()
-    
+    traffic_sign_classifier.build_model(restore = True)
+
+    # test on some new dataset from internet. Add 4 images in the folder. Also to change the CSV file as it is used to read the images.
     new_test_images, new_test_labels = get_new_test_images(NEW_TEST_DIR)
     preprocessed_new_test_images = preprocess_images(new_test_images, False)
-    top = traffic_sign_classifier.softMaxProb(preprocessed_new_test_images,new_test_labels)      
-    classes = traffic_sign_classifier.plot_predict(top.indices, top.values, (8,8),4,6)    
+    pred_results = traffic_sign_classifier.softMaxProb(preprocessed_new_test_images,new_test_labels)      
+    plot_predict(project_root_dir, NEW_TEST_DIR, pred_results.indices, pred_results.values, (8,8),4,6)

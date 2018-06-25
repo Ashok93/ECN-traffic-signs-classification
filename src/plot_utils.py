@@ -56,3 +56,54 @@ def plot_confusion_matrix(cm, classes, title='Confusion matrix', cmap=plt.cm.jet
     plt.title(title)
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
+
+def plot_learning_curve(accuracys):
+        plt.figure(figsize=(8,6))
+        plt.title('Learning Curve')
+        
+        plt.tight_layout()
+        
+        if len(accuracys) > 0:
+            plt.legend(['Training Error'])
+            plt.plot([1-el for el in accuracys])
+
+        plt.savefig('learning_curve.png')
+        plt.ylabel('Error')
+        plt.xlabel('Epoch')
+
+        plt.show()
+        
+def plot_cost(costs):
+    plt.figure(figsize=(8,6))
+    plt.title('Cost')        
+    plt.tight_layout()        
+    plt.legend(['Cost'])
+    plt.plot([el for el in costs])             
+    plt.savefig('Training_Cost.png')
+    plt.ylabel('Cost')
+    plt.xlabel('Epoch')
+
+    plt.show()
+
+def plot_predict(project_root_dir, test_img_dir, top, prob, fsize=(8,8), rows = 4, cols = 6):
+    
+    fig = plt.figure(figsize=fsize)
+    count = 1
+    for i in range(0, rows):
+        #plot test image
+        ax = fig.add_subplot(rows, cols, count)                
+        count += 1
+        image = plt.imread(test_img_dir + '/0' + str(i+1) + '.ppm')
+        plt.imshow(image)
+
+        for j in range(1, cols):
+            #plot guess class
+            ax = fig.add_subplot(rows, cols, count) 
+            p  = float("{0:.100f}".format(prob[i][j-1]))
+            p  = prob[i][j-1]
+            ax.set_title(str(p))
+            count += 1
+            image = plt.imread(project_root_dir + '/sign_class/' + str(top[i][j-1]) + '.png')
+            plt.imshow(image)
+    plt.tight_layout()
+    plt.show()
